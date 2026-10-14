@@ -268,5 +268,8 @@ def download_render(project_id: str, render_id: str):
 from studio.models import router as model_router
 app.include_router(model_router)
 
+from studio.production import router as production_router
+app.include_router(production_router)
+
 from fastapi.staticfiles import StaticFiles
 app.mount("/", StaticFiles(directory=Path(__file__).parent / "web", html=True), name="studio")

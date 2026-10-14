@@ -9,8 +9,11 @@ class ProductionTests(unittest.TestCase):
         cls.dir = tempfile.TemporaryDirectory()
         os.environ["CINEMA_DATA_DIR"] = cls.dir.name
         from fastapi.testclient import TestClient
-        from studio.server import app
-        cls.client = TestClient(app)
+        from studio import server
+        from pathlib import Path
+        server.ROOT = Path(cls.dir.name)
+        server.DB = server.ROOT / 'projects.sqlite3'
+        cls.client = TestClient(server.app)
 
     @classmethod
     def tearDownClass(cls):

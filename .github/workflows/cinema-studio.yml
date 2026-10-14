@@ -1,0 +1,28 @@
+name: Cinema Studio API Checks
+on:
+  pull_request:
+    paths:
+      - 'studio/**'
+      - '.github/workflows/cinema-studio.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'studio/**'
+      - '.github/workflows/cinema-studio.yml'
+jobs:
+  studio-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install media tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install studio dependencies
+        run: python -m pip install -r studio/requirements.txt
+      - name: Verify import and routes
+        run: python -c 'from studio.server import app; assert app'
+      - name: API tests
+        run: python -m unittest discover -s studio/tests -v

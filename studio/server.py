@@ -265,5 +265,8 @@ def download_render(project_id: str, render_id: str):
                         media_type="video/mp4", filename=f"cinema-{render_id}.mp4")
 
 
+from studio.models import router as model_router
+app.include_router(model_router)
+
 from fastapi.staticfiles import StaticFiles
 app.mount("/", StaticFiles(directory=Path(__file__).parent / "web", html=True), name="studio")

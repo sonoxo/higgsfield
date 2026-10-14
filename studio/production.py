@@ -90,6 +90,8 @@ def _do_render(project_id: str, render_id: str):
     """Reuse existing local FFmpeg renderer; mirror its outcome on the queue record."""
     s = core()
     try:
+        with s.connect() as db:
+            db.execute("UPDATE renders SET status='processing' WHERE id=?", (render_id,))
         result = s.render_project(project_id)
         with s.connect() as db:
             db.execute("UPDATE renders SET status='completed', detail=? WHERE id=?",
@@ -98,6 +100,25 @@ def _do_render(project_id: str, render_id: str):
         with s.connect() as db:
             db.execute("UPDATE renders SET status='failed', detail=? WHERE id=?",
                        (str(exc)[:500], render_id))
+
+
+@router.get("/projects/{project_id}/preflight")
+def preflight(project_id: str):
+    s = core()
+    with s.connect() as db:
+        s.require_project(db, project_id)
+        shots = [dict(r) for r in db.execute(
+            "SELECT id, asset_id FROM shots WHERE project_id=? ORDER BY position", (project_id,))]
+        assets = {r["id"] for r in db.execute("SELECT id FROM assets WHERE project_id=?", (project_id,))}
+    missing = [r["id"] for r in shots if not r["asset_id"] or r["asset_id"] not in assets]
+    media_tools = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+    return {"ready": bool(shots) and not missing and media_tools,
+            "shot_count": len(shots), "missing_media_shot_ids": missing,
+            "ffmpeg_available": media_tools,
+            "next_step": ("Ready to render" if shots and not missing and media_tools else
+                          "Install FFmpeg" if not media_tools else
+                          "Add a shot" if not shots else
+                          "Upload footage and attach it to each missing shot")}
 
 
 @router.post("/projects/{project_id}/render-jobs", status_code=202)
@@ -109,7 +130,7 @@ def enqueue_render(project_id: str):
         s.require_project(db, project_id)
         shots = list(db.execute("SELECT asset_id FROM shots WHERE project_id=?", (project_id,)))
         if not shots or any(not x["asset_id"] for x in shots):
-            raise HTTPException(400, "All shots must be assigned media")
+            raise HTTPException(400, "Upload footage and attach it to every shot before rendering. Text prompts alone cannot produce video with the current engine.")
         # One outstanding render per project in this single-process queue.
         busy = db.execute("SELECT 1 FROM renders WHERE project_id=? AND status IN ('queued','processing')",
                           (project_id,)).fetchone()

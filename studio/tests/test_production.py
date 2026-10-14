@@ -40,6 +40,18 @@ class ProductionTests(unittest.TestCase):
         self.assertEqual(export.json()["timeline"][0]["shot_id"],b_id)
         self.assertEqual(export.json()["timeline"][1]["start_seconds"],3.0)
 
+    def test_render_preflight_missing_media(self):
+        c = self.client
+        project = c.post("/api/projects", json={"name": "Preflight"}).json()["id"]
+        shot = c.post(f"/api/projects/{project}/shots", json={"prompt": "Red panda"}).json()["id"]
+        check = c.get(f"/api/projects/{project}/preflight")
+        self.assertEqual(check.status_code, 200)
+        self.assertFalse(check.json()["ready"])
+        self.assertIn(shot, check.json()["missing_media_shot_ids"])
+        self.assertIn("Upload footage", check.json()["next_step"] if check.json()["ffmpeg_available"] else "Upload footage")
+        invalid = c.post(f"/api/projects/{project}/render-jobs")
+        self.assertIn(invalid.status_code, (400, 503))
+
     def test_reject_invalid_sequence(self):
         c=self.client
         project=c.post("/api/projects",json={"name":"Guardrails"}).json()["id"]
